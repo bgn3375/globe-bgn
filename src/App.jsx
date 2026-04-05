@@ -87,13 +87,13 @@ function CountryRow({ country, isChecked, onToggle }) {
       onClick={() => onToggle(country)}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-        padding: '12px 16px', background: isChecked ? 'rgba(168,85,247,0.08)' : 'transparent',
+        padding: '12px 16px', marginBottom: 4, background: isChecked ? 'rgba(168,85,247,0.08)' : 'transparent',
         border: 'none', cursor: 'pointer', transition: 'background 0.15s'
       }}
     >
       <span
         style={{
-          width: 24, height: 24, borderRadius: 6,
+          width: 26, height: 26, borderRadius: 6,
           border: isChecked ? 'none' : '2px solid rgba(255,255,255,0.15)',
           background: isChecked ? 'linear-gradient(135deg, #a855f7, #3b82f6)' : 'transparent',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -101,19 +101,19 @@ function CountryRow({ country, isChecked, onToggle }) {
         }}
       >
         {isChecked && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         )}
       </span>
-      <span style={{ fontSize: 16, color: isChecked ? '#fff' : '#a0a4b8', fontWeight: 500 }}>{country}</span>
+      <span style={{ fontSize: 18, color: isChecked ? '#fff' : '#a0a4b8', fontWeight: 500 }}>{country}</span>
     </div>
   )
 }
 
 export default function App() {
   const [checked, setChecked] = useState({})
-  const [expanded, setExpanded] = useState({})
+  const [expanded, setExpanded] = useState(() => Object.fromEntries(Object.keys(COUNTRIES).map(r => [r, true])))
   const [mounted, setMounted] = useState(false)
   const [name, setName] = useState("")
   const [started, setStarted] = useState(false)
@@ -160,11 +160,11 @@ export default function App() {
     const ctx = canvas.getContext('2d')
     ctx.scale(2, 2)
     const grad = ctx.createLinearGradient(0, 0, W * .6, H)
-    grad.addColorStop(0, '#0a0a15')
-    grad.addColorStop(.3, '#1a0f2e')
-    grad.addColorStop(.55, '#2d1b4e')
-    grad.addColorStop(.8, '#1e3a8a')
-    grad.addColorStop(1, '#0f172a')
+    grad.addColorStop(0, '#1a0628')
+    grad.addColorStop(.25, '#3b1160')
+    grad.addColorStop(.5, '#6b21a8')
+    grad.addColorStop(.75, '#4338ca')
+    grad.addColorStop(1, '#1e1b4b')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, W, H)
 
@@ -185,31 +185,31 @@ export default function App() {
         if (visitedIds.has(id)) return
         ctx.beginPath()
         path(f)
-        ctx.fillStyle = 'rgba(255,255,255,0.05)'
+        ctx.fillStyle = 'rgba(255,255,255,0.07)'
         ctx.fill()
-        ctx.strokeStyle = 'rgba(255,255,255,0.09)'
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)'
         ctx.lineWidth = 0.4
         ctx.stroke()
       })
-      // Apoi tarile vizitate peste (accent mov)
+      // Apoi tarile vizitate peste (accent pink-mov viu)
       worldData.features.forEach(f => {
         const id = String(f.id).padStart(3, '0')
         if (!visitedIds.has(id)) return
         ctx.beginPath()
         path(f)
-        ctx.fillStyle = 'rgba(168,85,247,0.55)'
+        ctx.fillStyle = 'rgba(236,72,153,0.85)'
         ctx.fill()
-        ctx.strokeStyle = 'rgba(168,85,247,0.9)'
-        ctx.lineWidth = 0.6
+        ctx.strokeStyle = 'rgba(244,114,182,1)'
+        ctx.lineWidth = 0.8
         ctx.stroke()
       })
 
-      // Overlay de contrast pentru lizibilitate text
+      // Overlay usor de contrast pentru lizibilitate text (mult mai transparent)
       const overlay = ctx.createLinearGradient(0, 0, 0, H)
-      overlay.addColorStop(0, 'rgba(10,10,21,0.65)')
-      overlay.addColorStop(0.35, 'rgba(10,10,21,0.15)')
-      overlay.addColorStop(0.65, 'rgba(10,10,21,0.15)')
-      overlay.addColorStop(1, 'rgba(10,10,21,0.85)')
+      overlay.addColorStop(0, 'rgba(26,6,40,0.35)')
+      overlay.addColorStop(0.3, 'rgba(26,6,40,0.05)')
+      overlay.addColorStop(0.7, 'rgba(26,6,40,0.05)')
+      overlay.addColorStop(1, 'rgba(26,6,40,0.45)')
       ctx.fillStyle = overlay
       ctx.fillRect(0, 0, W, H)
     }
