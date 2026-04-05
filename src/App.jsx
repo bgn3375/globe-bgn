@@ -1,6 +1,42 @@
 import React, { useState, useEffect } from 'react'
+import { geoEqualEarth, geoPath } from 'd3-geo'
+import { feature } from 'topojson-client'
 
 const SHARE_URL = "https://globe-bgn.vercel.app"
+
+// Mapare nume RO -> coduri ISO 3166-1 numerice (folosite de world-atlas)
+// UK (826) acopera Anglia, Scotia, Tara Galilor, Irlanda de Nord
+const ISO_CODES = {
+  "Andorra": "020", "Anglia": "826", "Austria": "040", "Belgia": "056", "Elvetia": "756",
+  "Franta": "250", "Germania": "276", "Irlanda de Nord": "826", "Luxemburg": "442",
+  "Monaco": "492", "Olanda": "528", "Scotia": "826", "Tara Galilor": "826",
+  "Danemarca": "208", "Estonia": "233", "Finlanda": "246", "Irlanda": "372",
+  "Islanda": "352", "Letonia": "428", "Lituania": "440", "Norvegia": "578", "Suedia": "752",
+  "Albania": "008", "Bosnia si Hertegovina": "070", "Cipru": "196", "Croatia": "191",
+  "Grecia": "300", "Italia": "380", "Malta": "470", "Muntenegru": "499",
+  "Macedonia de Nord": "807", "Portugalia": "620", "Serbia": "688", "Slovenia": "705",
+  "Spania": "724", "Vatican": "336",
+  "Bulgaria": "100", "Cehia": "203", "Moldova": "498", "Polonia": "616",
+  "Romania": "642", "Rusia": "643", "Slovacia": "703", "Ungaria": "348",
+  "Armenia": "051", "Azerbaijan": "031", "Georgia": "268", "Turcia": "792",
+  "Arabia Saudita": "682", "Bahrain": "048", "Emiratele Arabe Unite": "784",
+  "Iordania": "400", "Iran": "364", "Israel": "376", "Kuwait": "414",
+  "Liban": "422", "Oman": "512", "Qatar": "634",
+  "Kazahstan": "398", "Uzbekistan": "860",
+  "Bangladesh": "050", "India": "356", "Maldive": "462", "Nepal": "524", "Sri Lanka": "144",
+  "China": "156", "Coreea de Sud": "410", "Japonia": "392", "Mongolia": "496", "Taiwan": "158",
+  "Cambodgia": "116", "Filipine": "608", "Indonezia": "360", "Laos": "418",
+  "Malaysia": "458", "Singapore": "702", "Thailanda": "764", "Vietnam": "704",
+  "Algeria": "012", "Egipt": "818", "Maroc": "504", "Tunisia": "788",
+  "Africa de Sud": "710", "Botswana": "072", "Coasta de Fildes": "384", "Etiopia": "231",
+  "Ghana": "288", "Kenya": "404", "Mauritius": "480", "Namibia": "516", "Nigeria": "566",
+  "Rwanda": "646", "Seychelles": "690", "Tanzania": "834", "Uganda": "800",
+  "Canada": "124", "Mexic": "484", "SUA": "840",
+  "Costa Rica": "188", "Cuba": "192", "Jamaica": "388", "Panama": "591", "Republica Dominicana": "214",
+  "Argentina": "032", "Brazilia": "076", "Chile": "152", "Columbia": "170",
+  "Ecuador": "218", "Peru": "604", "Uruguay": "858", "Venezuela": "862",
+  "Australia": "036", "Fiji": "242", "Noua Zeelanda": "554"
+}
 
 const COUNTRIES = {
   "Europa de Vest": ["Andorra","Anglia","Austria","Belgia","Elvetia","Franta","Germania","Irlanda de Nord","Luxemburg","Monaco","Olanda","Scotia","Tara Galilor"],
@@ -82,8 +118,20 @@ export default function App() {
   const [name, setName] = useState("")
   const [started, setStarted] = useState(false)
   const [shareImg, setShareImg] = useState(null)
+  const [worldData, setWorldData] = useState(null)
 
   useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    // Incarcam topojson cu tarile lumii (50m = include micro-state ca Monaco, Vatican, Singapore)
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
+      .then(r => r.json())
+      .then(topo => {
+        const geo = feature(topo, topo.objects.countries)
+        setWorldData(geo)
+      })
+      .catch(() => { /* silent fail, cardul ramane fara harta */ })
+  }, [])
 
   const toggleCountry = (c) => {
     setChecked(prev => {
@@ -119,6 +167,53 @@ export default function App() {
     grad.addColorStop(1, '#0f172a')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, W, H)
+
+    // Deseneaza harta lumii ca layer de fundal
+    if (worldData) {
+      const visitedIds = new Set(
+        Object.keys(checked).map(name => ISO_CODES[name]).filter(Boolean)
+      )
+      const mapTop = 20
+      const mapBottom = H - 120
+      const mapH = mapBottom - mapTop
+      const projection = geoEqualEarth().fitExtent([[20, mapTop], [W - 20, mapBottom]], worldData)
+      const path = geoPath(projection, ctx)
+
+      // Deseneaza toate tarile: intai cele nevizitate (fundal gri subtil)
+      worldData.features.forEach(f => {
+        const id = String(f.id).padStart(3, '0')
+        if (visitedIds.has(id)) return
+        ctx.beginPath()
+        path(f)
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(255,255,255,0.09)'
+        ctx.lineWidth = 0.4
+        ctx.stroke()
+      })
+      // Apoi tarile vizitate peste (accent mov)
+      worldData.features.forEach(f => {
+        const id = String(f.id).padStart(3, '0')
+        if (!visitedIds.has(id)) return
+        ctx.beginPath()
+        path(f)
+        ctx.fillStyle = 'rgba(168,85,247,0.55)'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(168,85,247,0.9)'
+        ctx.lineWidth = 0.6
+        ctx.stroke()
+      })
+
+      // Overlay de contrast pentru lizibilitate text
+      const overlay = ctx.createLinearGradient(0, 0, 0, H)
+      overlay.addColorStop(0, 'rgba(10,10,21,0.65)')
+      overlay.addColorStop(0.35, 'rgba(10,10,21,0.15)')
+      overlay.addColorStop(0.65, 'rgba(10,10,21,0.15)')
+      overlay.addColorStop(1, 'rgba(10,10,21,0.85)')
+      ctx.fillStyle = overlay
+      ctx.fillRect(0, 0, W, H)
+    }
+
     const FF = "'DM Sans', sans-serif"
     ctx.textAlign = 'center'
     ctx.fillStyle = '#fff'
