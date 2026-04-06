@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { geoEqualEarth, geoPath } from 'd3-geo'
 import { feature } from 'topojson-client'
 
-const SHARE_URL = "https://globe-bgn.vercel.app"
+const SHARE_URL = "40by40.bgn.ro"
 
 // Mapare nume RO -> coduri ISO 3166-1 numerice (folosite de world-atlas)
 // UK (826) acopera Anglia, Scotia, Tara Galilor, Irlanda de Nord
@@ -147,134 +147,156 @@ export default function App() {
   const pct = TOTAL > 0 ? count / TOTAL * 100 : 0
   const badge = getTitle(count)
 
-  const summary = () => Object.entries(COUNTRIES)
-    .map(([region, list]) => ({ region, count: list.filter(c => checked[c]).length, total: list.length }))
+  const summary = () => Object.entries(CONTINENTS)
+    .map(([continent, regions]) => {
+      const allCountries = regions.flatMap(r => COUNTRIES[r])
+      return { region: continent, count: allCountries.filter(c => checked[c]).length, total: allCountries.length }
+    })
     .filter(r => r.count > 0)
     .sort((a, b) => b.count - a.count)
 
   const makeShareCanvas = () => {
     const stats = summary()
-    const W = 640, H = 560 + stats.length * 58
+    const FF = "'DM Sans', sans-serif"
+    const W = 640
+    const MAP_H = 320
+    const STATS_TOP = 300 + MAP_H + 20
+    const H = STATS_TOP + stats.length * 54 + 90
+
     const canvas = document.createElement('canvas')
     canvas.width = W * 2; canvas.height = H * 2
     const ctx = canvas.getContext('2d')
     ctx.scale(2, 2)
-    const grad = ctx.createLinearGradient(0, 0, W * .6, H)
-    grad.addColorStop(0, '#1a0628')
-    grad.addColorStop(.25, '#3b1160')
-    grad.addColorStop(.5, '#6b21a8')
-    grad.addColorStop(.75, '#4338ca')
-    grad.addColorStop(1, '#1e1b4b')
+    // Lovable-style bright gradient: indigo -> pink -> orange
+    const grad = ctx.createLinearGradient(0, 0, W, H)
+    grad.addColorStop(0, '#6366f1')
+    grad.addColorStop(.25, '#a855f7')
+    grad.addColorStop(.5, '#ec4899')
+    grad.addColorStop(.75, '#f43f5e')
+    grad.addColorStop(1, '#f97316')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, W, H)
+    // Radial glow top-center pentru luminozitate extra
+    const glow = ctx.createRadialGradient(W / 2, 0, 0, W / 2, 0, W * 0.9)
+    glow.addColorStop(0, 'rgba(255,255,255,0.35)')
+    glow.addColorStop(0.4, 'rgba(255,255,255,0.08)')
+    glow.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(0, 0, W, H)
 
-    // Deseneaza harta lumii ca layer de fundal
+    // Deseneaza harta lumii full-width
     if (worldData) {
       const visitedIds = new Set(
         Object.keys(checked).map(name => ISO_CODES[name]).filter(Boolean)
       )
-      const mapTop = 20
-      const mapBottom = H - 120
-      const mapH = mapBottom - mapTop
-      const projection = geoEqualEarth().fitExtent([[20, mapTop], [W - 20, mapBottom]], worldData)
+      const mapTop = 290
+      const mapBottom = mapTop + MAP_H
+      const projection = geoEqualEarth().fitExtent([[4, mapTop], [W - 4, mapBottom]], worldData)
       const path = geoPath(projection, ctx)
 
-      // Deseneaza toate tarile: intai cele nevizitate (fundal gri subtil)
       worldData.features.forEach(f => {
         const id = String(f.id).padStart(3, '0')
         if (visitedIds.has(id)) return
         ctx.beginPath()
         path(f)
-        ctx.fillStyle = 'rgba(255,255,255,0.07)'
+        ctx.fillStyle = 'rgba(255,255,255,0.22)'
         ctx.fill()
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-        ctx.lineWidth = 0.4
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'
+        ctx.lineWidth = 0.5
         ctx.stroke()
       })
-      // Apoi tarile vizitate peste (accent pink-mov viu)
       worldData.features.forEach(f => {
         const id = String(f.id).padStart(3, '0')
         if (!visitedIds.has(id)) return
         ctx.beginPath()
         path(f)
-        ctx.fillStyle = 'rgba(236,72,153,0.85)'
+        ctx.fillStyle = 'rgba(16,185,129,0.92)'
         ctx.fill()
-        ctx.strokeStyle = 'rgba(244,114,182,1)'
-        ctx.lineWidth = 0.8
+        ctx.strokeStyle = 'rgba(236,253,245,1)'
+        ctx.lineWidth = 0.9
         ctx.stroke()
       })
-
-      // Overlay usor de contrast pentru lizibilitate text (mult mai transparent)
-      const overlay = ctx.createLinearGradient(0, 0, 0, H)
-      overlay.addColorStop(0, 'rgba(26,6,40,0.35)')
-      overlay.addColorStop(0.3, 'rgba(26,6,40,0.05)')
-      overlay.addColorStop(0.7, 'rgba(26,6,40,0.05)')
-      overlay.addColorStop(1, 'rgba(26,6,40,0.45)')
-      ctx.fillStyle = overlay
-      ctx.fillRect(0, 0, W, H)
     }
 
-    const FF = "'DM Sans', sans-serif"
-    ctx.textAlign = 'center'
-    ctx.fillStyle = '#fff'
-    if (name.trim()) {
+    // 1. Rand: nume + badge inline (centrate impreuna)
+    const nameText = name.trim()
+    const badgeText = badge.title.toUpperCase()
+    ctx.font = `800 26px ${FF}`
+    const nameW = nameText ? ctx.measureText(nameText).width : 0
+    ctx.font = `800 15px ${FF}`
+    const badgeTextW = ctx.measureText(badgeText).width
+    const badgePadX = 16, badgeH = 32
+    const badgeW = badgeTextW + badgePadX * 2
+    const gap = nameText ? 14 : 0
+    const rowW = nameW + gap + badgeW
+    const rowStartX = (W - rowW) / 2
+    const rowCenterY = 56
+
+    if (nameText) {
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#fff'
       ctx.font = `800 26px ${FF}`
-      ctx.fillText(name.trim(), W / 2, 44)
+      ctx.textBaseline = 'middle'
+      ctx.fillText(nameText, rowStartX, rowCenterY)
     }
-    ctx.font = `700 20px ${FF}`
-    ctx.fillText("GLOBE 40BY40", W / 2, name.trim() ? 78 : 50)
-    const lineY = name.trim() ? 92 : 64
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+    const badgeX = rowStartX + nameW + gap
+    const badgeY = rowCenterY - badgeH / 2
+    ctx.fillStyle = 'rgba(255,255,255,0.22)'
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'
     ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(W / 2 - 80, lineY); ctx.lineTo(W / 2 + 80, lineY); ctx.stroke()
-    ctx.font = `900 152px ${FF}`
-    ctx.shadowColor = 'rgba(168,85,247,0.5)'
-    ctx.shadowBlur = 24
-    ctx.fillText(`${count}`, W / 2, name.trim() ? 233 : 205)
-    ctx.shadowBlur = 0
-    ctx.font = `600 22px ${FF}`
-    ctx.fillText(`tari vizitate din ${TOTAL}`, W / 2, name.trim() ? 270 : 242)
-    const barX = 80, barY = name.trim() ? 300 : 272, barW = W - 160, barH = 8
-    ctx.fillStyle = 'rgba(255,255,255,0.1)'
-    ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 4); ctx.fill()
-    ctx.fillStyle = '#a855f7'
-    ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW * pct / 100, 8), barH, 4); ctx.fill()
-    ctx.font = `800 16px ${FF}`
-    ctx.textAlign = 'right'
-    ctx.fillText(`${pct.toFixed(1)}%`, W - 80, barY + 6)
-    ctx.textAlign = 'center'
-    let yy = name.trim() ? 352 : 324
-    if (stats.length > 0) {
-      ctx.font = `800 16px ${FF}`
-      ctx.fillText("DEFALCARE PE REGIUNI", W / 2, yy)
-      yy += 32
-      stats.forEach(s => {
-        ctx.fillStyle = 'rgba(255,255,255,0.05)'
-        ctx.beginPath(); ctx.roundRect(70, yy - 22, W - 140, 48, 14); ctx.fill()
-        ctx.strokeStyle = 'rgba(168,85,247,0.12)'
-        ctx.lineWidth = 1
-        ctx.beginPath(); ctx.roundRect(70, yy - 22, W - 140, 48, 14); ctx.stroke()
-        ctx.textAlign = 'left'
-        ctx.font = `700 20px ${FF}`
-        ctx.fillStyle = '#fff'
-        ctx.fillText(s.region, 92, yy + 8)
-        ctx.textAlign = 'right'
-        ctx.font = `800 20px ${FF}`
-        ctx.fillStyle = '#a855f7'
-        ctx.fillText(`${s.count}/${s.total}`, W - 92, yy + 8)
-        ctx.textAlign = 'center'
-        yy += 58
-      })
-    }
-    const btnW = 280, btnH = 52, btnX = (W - btnW) / 2, btnY = H - 88
-    ctx.fillStyle = '#a855f7'
-    ctx.beginPath(); ctx.roundRect(btnX, btnY, btnW, btnH, 26); ctx.fill()
+    ctx.beginPath(); ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 16); ctx.fill(); ctx.stroke()
     ctx.fillStyle = '#fff'
-    ctx.font = `800 20px ${FF}`
-    ctx.fillText(badge.title.toUpperCase(), W / 2, btnY + 33)
-    ctx.font = `500 16px ${FF}`
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'
-    ctx.fillText(SHARE_URL, W / 2, H - 16)
+    ctx.font = `800 15px ${FF}`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(badgeText, badgeX + badgeW / 2, rowCenterY + 1)
+    ctx.textBaseline = 'alphabetic'
+
+    // 2. Numarul mare
+    ctx.textAlign = 'center'
+    ctx.font = `900 142px ${FF}`
+    ctx.shadowColor = 'rgba(30,27,75,0.35)'
+    ctx.shadowBlur = 28
+    ctx.fillStyle = '#fff'
+    ctx.fillText(`${count}`, W / 2, 218)
+    ctx.shadowBlur = 0
+
+    // 3. Subtitlu
+    ctx.font = `600 22px ${FF}`
+    ctx.fillStyle = 'rgba(255,255,255,1)'
+    ctx.fillText('tari vizitate', W / 2, 252)
+
+    // 4. Lista de continente (dupa harta)
+    let yy = STATS_TOP
+    stats.forEach(s => {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'
+      ctx.beginPath(); ctx.roundRect(60, yy - 22, W - 120, 46, 14); ctx.fill()
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'
+      ctx.lineWidth = 1
+      ctx.beginPath(); ctx.roundRect(60, yy - 22, W - 120, 46, 14); ctx.stroke()
+      ctx.textAlign = 'left'
+      ctx.font = `700 21px ${FF}`
+      ctx.fillStyle = '#fff'
+      ctx.fillText(s.region, 80, yy + 7)
+      ctx.textAlign = 'right'
+      ctx.font = `800 21px ${FF}`
+      ctx.fillStyle = '#fff'
+      ctx.fillText(`${s.count}`, W - 80, yy + 7)
+      yy += 54
+    })
+
+    // 5. Footer: 40BY40 + URL
+    ctx.textAlign = 'center'
+    ctx.font = `800 32px ${FF}`
+    ctx.fillStyle = '#fff'
+    ctx.fillText('40BY40', W / 2, H - 48)
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.moveTo(W / 2 - 80, H - 34); ctx.lineTo(W / 2 + 80, H - 34); ctx.stroke()
+    ctx.font = `500 15px ${FF}`
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'
+    ctx.fillText(SHARE_URL, W / 2, H - 14)
+
     return canvas.toDataURL('image/png')
   }
 
@@ -282,16 +304,18 @@ export default function App() {
   const doShare = async () => {
     const img = shareImg || makeShareCanvas()
     if (!shareImg) setShareImg(img)
+    const text = `${name.trim() ? name.trim() + ' a' : 'Am'} vizitat ${count} tari! Tu cate ai vizitat? ${SHARE_URL}`
+    // Incearca Web Share API cu imagine (pe mobil functioneaza catre WhatsApp)
     try {
       const blob = await (await fetch(img)).blob()
       const file = new File([blob], 'globe-40by40.png', { type: 'image/png' })
-      const text = `${name.trim() ? name.trim() + ' a' : 'Am'} vizitat ${count} tari din ${TOTAL}! Tu cate ai vizitat? ${SHARE_URL}`
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Globe 40by40', text })
-      } else if (navigator.share) {
-        await navigator.share({ title: 'Globe 40by40', text, url: SHARE_URL })
+        await navigator.share({ files: [file], title: '40by40', text })
+        return
       }
     } catch { }
+    // Fallback: deschide WhatsApp direct
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
   const start = () => setStarted(true)
 
@@ -355,14 +379,13 @@ export default function App() {
           <button onClick={() => setShareImg(null)} style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>×</button>
           <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
             <img src={shareImg} alt="Globe 40by40" style={{ width: '100%', borderRadius: 16, boxShadow: '0 8px 40px rgba(168,85,247,0.3)' }} />
-            <button onClick={doShare} style={{ marginTop: 16, width: '100%', padding: '16px 20px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #a855f7, #3b82f6)', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <line x1="12" y1="2" x2="12" y2="15" />
+            <button onClick={doShare} style={{ marginTop: 16, width: '100%', padding: '16px 20px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 25%, #ec4899 55%, #f97316 100%)', color: '#fff', fontSize: 17, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 32px rgba(236,72,153,0.35)' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
               </svg>
-              Share
+              WhatsApp
             </button>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 10 }}>Apasa pentru a salva sau trimite imaginea</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 10 }}>Apasa pentru a trimite pe WhatsApp</div>
           </div>
         </div>
       )}
