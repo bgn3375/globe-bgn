@@ -4,5 +4,13 @@
       "*": false,
       "main": true
     }
-  }
+  },
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/((?!inchis$).*)",
+      "destination": "/inchis",
+      "permanent": false
+    }
+  ]
 }
